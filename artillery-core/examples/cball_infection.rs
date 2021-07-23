@@ -80,6 +80,13 @@ fn main() {
             .unwrap()
             .next()
             .unwrap(),
+        labels: vec![
+            ("role".to_string(), "front-end".to_string()),
+            ("env".to_string(), "test".to_string()),
+        ],
+        metadata: "{\"name\":\"artillery-core\", \"version\":\"1.2\"}"
+            .as_bytes()
+            .to_vec(),
         ..Default::default()
     };
 

@@ -1,6 +1,7 @@
 use super::cluster_config::ClusterConfig;
 use super::membership::ArtilleryMemberList;
 use crate::epidemic::member::{ArtilleryMember, ArtilleryMemberState, ArtilleryStateChange};
+use crate::epidemic::prelude::{Labels, Metadata};
 use crate::errors::*;
 use chrono::{DateTime, Utc};
 use cuneiform_fields::prelude::*;
@@ -41,6 +42,8 @@ pub enum ArtilleryMemberEvent {
 pub struct ArtilleryMessage {
     sender: Uuid,
     cluster_key: Vec<u8>,
+    labels: Labels,
+    metadata: Metadata,
     request: Request,
     state_changes: Vec<ArtilleryStateChange>,
 }
@@ -105,7 +108,7 @@ impl ArtilleryEpidemic {
         poll.registry()
             .register(&mut server_socket, UDP_SERVER, interests)?;
 
-        let me = ArtilleryMember::current(host_key);
+        let me = ArtilleryMember::current(host_key, config.labels.clone(), config.metadata.clone());
 
         let state = ArtilleryEpidemic {
             host_key,
@@ -219,6 +222,8 @@ impl ArtilleryEpidemic {
         let message = build_message(
             &self.host_key,
             &self.config.cluster_key,
+            &self.config.labels,
+            &self.config.metadata,
             &request.request,
             &self.state_changes,
             self.config.network_mtu,
@@ -350,7 +355,7 @@ impl ArtilleryEpidemic {
             self.apply_state_changes(message.state_changes, src_addr);
             remove_potential_seed(&mut self.seed_queue, src_addr);
 
-            self.ensure_node_is_member(src_addr, message.sender);
+            self.ensure_node_is_member(src_addr, message.sender, message.labels, message.metadata);
 
             let response = match message.request {
                 Heartbeat => Some(TargetedRequest {
@@ -416,12 +421,25 @@ impl ArtilleryEpidemic {
             .retain(|op| !to_remove.iter().any(|ip| ip == op));
     }
 
-    fn ensure_node_is_member(&mut self, src_addr: SocketAddr, sender: Uuid) {
+    fn ensure_node_is_member(
+        &mut self,
+        src_addr: SocketAddr,
+        sender: Uuid,
+        labels: Labels,
+        metadata: Metadata,
+    ) {
         if self.members.has_member(&src_addr) {
             return;
         }
 
-        let new_member = ArtilleryMember::new(sender, src_addr, 0, ArtilleryMemberState::Alive);
+        let new_member = ArtilleryMember::new(
+            sender,
+            src_addr,
+            0,
+            ArtilleryMemberState::Alive,
+            labels,
+            metadata,
+        );
 
         self.members.add_member(new_member.clone());
         enqueue_state_change(&mut self.state_changes, &[new_member.clone()]);
@@ -483,6 +501,8 @@ impl ArtilleryEpidemic {
 fn build_message(
     sender: &Uuid,
     cluster_key: &[u8],
+    labels: &Labels,
+    metadata: &Metadata,
     request: &Request,
     state_changes: &[ArtilleryStateChange],
     network_mtu: usize,
@@ -490,6 +510,8 @@ fn build_message(
     let mut message = ArtilleryMessage {
         sender: *sender,
         cluster_key: cluster_key.into(),
+        labels: labels.clone(),
+        metadata: metadata.clone(),
         request: request.clone(),
         state_changes: Vec::new(),
     };
@@ -499,6 +521,8 @@ fn build_message(
         message = ArtilleryMessage {
             sender: *sender,
             cluster_key: cluster_key.into(),
+            labels: labels.clone(),
+            metadata: metadata.clone(),
             request: request.clone(),
             state_changes: (&state_changes[..i]).to_vec(),
         };

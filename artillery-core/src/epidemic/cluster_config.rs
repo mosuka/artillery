@@ -1,4 +1,5 @@
 use crate::constants::*;
+use crate::epidemic::member::{Labels, Metadata};
 use chrono::Duration;
 use std::net::{SocketAddr, ToSocketAddrs};
 
@@ -10,6 +11,13 @@ pub struct ClusterConfig {
     pub ping_request_host_count: usize,
     pub ping_timeout: Duration,
     pub listen_addr: SocketAddr,
+    /// Labels are key/value pairs that are attached to nodes.
+    /// Labels are intended to be used to specify identifying attributes of nodes
+    /// that are meaningful and relevant to users.
+    pub labels: Labels,
+    /// Metadata can be stored a data ( binary, plain text, JSON, etc. ) related to a node as binary array.
+    /// The data to be stored in metadata can be freely formatted and used by the user.
+    pub metadata: Metadata,
 }
 
 impl Default for ClusterConfig {
@@ -23,6 +31,8 @@ impl Default for ClusterConfig {
             ping_request_host_count: 3,
             ping_timeout: Duration::seconds(3),
             listen_addr: directed.to_socket_addrs().unwrap().next().unwrap(),
+            labels: Labels::new(),
+            metadata: Metadata::new(),
         }
     }
 }

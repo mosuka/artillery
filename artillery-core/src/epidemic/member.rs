@@ -23,6 +23,14 @@ pub enum ArtilleryMemberState {
     Left,
 }
 
+/// Labels are key/value pairs that are attached to nodes.
+/// Labels are intended to be used to specify identifying attributes of nodes
+/// that are meaningful and relevant to users.
+pub type Labels = Vec<(String, String)>;
+/// Metadata can be stored a data ( binary, plain text, JSON, etc. ) related to a node as binary array.
+/// The data to be stored in metadata can be freely formatted and used by the user.
+pub type Metadata = Vec<u8>;
+
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct ArtilleryMember {
     #[serde(rename = "h")]
@@ -35,6 +43,10 @@ pub struct ArtilleryMember {
     member_state: ArtilleryMemberState,
     #[serde(rename = "t")]
     last_state_change: DateTime<Utc>,
+    #[serde(rename = "l")]
+    labels: Labels,
+    #[serde(rename = "d")]
+    metadata: Metadata,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
@@ -48,6 +60,8 @@ impl ArtilleryMember {
         remote_host: SocketAddr,
         incarnation_number: u64,
         known_state: ArtilleryMemberState,
+        labels: Labels,
+        metadata: Metadata,
     ) -> Self {
         ArtilleryMember {
             host_key,
@@ -55,16 +69,20 @@ impl ArtilleryMember {
             incarnation_number,
             member_state: known_state,
             last_state_change: Utc::now(),
+            labels,
+            metadata,
         }
     }
 
-    pub fn current(host_key: Uuid) -> Self {
+    pub fn current(host_key: Uuid, labels: Labels, metadata: Metadata) -> Self {
         ArtilleryMember {
             host_key,
             remote_host: None,
             incarnation_number: 0,
             member_state: ArtilleryMemberState::Alive,
             last_state_change: Utc::now(),
+            labels,
+            metadata,
         }
     }
 
@@ -108,6 +126,14 @@ impl ArtilleryMember {
 
     pub fn reincarnate(&mut self) {
         self.incarnation_number += 1
+    }
+
+    pub fn labels(&self) -> Labels {
+        self.labels.clone()
+    }
+
+    pub fn metadata(&self) -> Metadata {
+        self.metadata.clone()
     }
 }
 
@@ -168,6 +194,8 @@ impl Debug for ArtilleryMember {
                     .map_or(String::from("(current)"), |r| format!("{}", r))
                     .as_str(),
             )
+            .field("labels", &self.labels)
+            .field("metadata", &self.metadata)
             .finish()
     }
 }
@@ -220,6 +248,8 @@ mod test {
             incarnation_number: 123,
             member_state: ArtilleryMemberState::Alive,
             last_state_change: Utc::now() - Duration::days(1),
+            labels: vec![("label_name".to_string(), "label_value".to_string())],
+            metadata: "metadata".as_bytes().to_vec(),
         };
 
         let encoded = bincode::serialize(&member).unwrap();
